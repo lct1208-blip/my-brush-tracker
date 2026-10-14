@@ -1,0 +1,315 @@
+
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>20人潔牙檢查表</title>
+<style>
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  padding: 20px;
+  font-family: "Microsoft JhengHei", sans-serif;
+  background: #f1f8f3;
+  color: #294537;
+}
+main { max-width: 760px; margin: auto; }
+h1 { text-align: center; color: #26734d; }
+.subtitle { text-align: center; color: #718278; }
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 22px 0;
+}
+input, button { font: inherit; }
+input[type="date"] {
+  padding: 9px;
+  border: 1px solid #ccdcd0;
+  border-radius: 8px;
+  background: white;
+}
+button {
+  border: 0;
+  border-radius: 8px;
+  padding: 10px 14px;
+  background: #287b52;
+  color: white;
+  cursor: pointer;
+}
+button.secondary { background: #64776c; }
+button.danger { background: #b64b42; }
+.summary {
+  background: white;
+  padding: 16px;
+  border-radius: 12px;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 8px #193b2610;
+}
+.progress {
+  height: 12px;
+  margin-top: 12px;
+  background: #e2ece5;
+  border-radius: 12px;
+  overflow: hidden;
+}
+#progressBar {
+  height: 100%;
+  width: 0;
+  background: #36a269;
+  transition: width .2s;
+}
+.table-wrap {
+  overflow-x: auto;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px #193b2610;
+}
+table { width: 100%; border-collapse: collapse; }
+th, td {
+  padding: 13px 12px;
+  text-align: center;
+  border-bottom: 1px solid #e8eee9;
+}
+th { background: #dff0e4; }
+tbody tr:nth-child(even) { background: #f8fbf8; }
+.name-input {
+  width: 100%;
+  min-width: 110px;
+  padding: 8px;
+  border: 1px solid #d8e3da;
+  border-radius: 6px;
+}
+input[type="checkbox"] {
+  width: 25px;
+  height: 25px;
+  accent-color: #278452;
+  cursor: pointer;
+}
+footer {
+  text-align: center;
+  margin: 18px 0;
+  font-size: 13px;
+  color: #718078;
+}
+@media(max-width: 500px) {
+  body { padding: 10px; }
+  h1 { font-size: 23px; }
+  .toolbar { align-items: stretch; }
+}
+</style>
+</head>
+<body>
+<main>
+  <h1>🪥 班級潔牙檢查表</h1>
+  <p class="subtitle">每天潔牙，保持牙齒健康！</p>
+
+  <div class="toolbar">
+    <label>
+      檢查日期：
+      <input type="date" id="checkDate">
+    </label>
+    <div>
+      <button class="secondary" id="exportBtn">匯出 CSV</button>
+      <button class="danger" id="clearBtn">清空當日勾選</button>
+    </div>
+  </div>
+
+  <section class="summary">
+    <strong id="summaryText">已潔牙 0 / 20 人</strong>
+    <div class="progress">
+      <div id="progressBar"></div>
+    </div>
+    <p id="detailText">完成率：0%</p>
+  </section>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>座號</th>
+          <th>學生姓名（可修改）</th>
+          <th>🪥 已潔牙</th>
+        </tr>
+      </thead>
+      <tbody id="studentRows"></tbody>
+    </table>
+  </div>
+
+  <footer>
+    共 20 位學生｜資料自動儲存在目前瀏覽器
+  </footer>
+</main>
+
+<script>
+const TOTAL = 20;
+const NAME_KEY = "brushTracker20Names";
+const DATA_PREFIX = "brushTracker20Day:";
+
+const defaultNames = Array.from(
+  { length: TOTAL }, (_, i) => "學生 " + (i + 1)
+);
+
+function readJSON(key, fallback) {
+  try {
+    const value = localStorage.getItem(key);
+    return value ? JSON.parse(value) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+let names = readJSON(NAME_KEY, defaultNames);
+names = Array.from({ length: TOTAL }, (_, i) =>
+  typeof names[i] === "string" ? names[i] : defaultNames[i]
+);
+
+function saveNames() {
+  localStorage.setItem(NAME_KEY, JSON.stringify(names));
+}
+
+function localDateString() {
+  const d = new Date();
+  return d.getFullYear() + "-" +
+    String(d.getMonth() + 1).padStart(2, "0") + "-" +
+    String(d.getDate()).padStart(2, "0");
+}
+
+const dateInput = document.getElementById("checkDate");
+dateInput.value = localDateString();
+
+function dayKey() {
+  return DATA_PREFIX + dateInput.value;
+}
+
+function blankDay() {
+  return Array.from({ length: TOTAL }, () => ({
+    brush: false
+  }));
+}
+
+function normalizeDay(data) {
+  return Array.from({ length: TOTAL }, (_, i) => ({
+    brush: Boolean(data[i] && data[i].brush)
+  }));
+}
+
+let checks = normalizeDay(readJSON(dayKey(), blankDay()));
+
+function saveChecks() {
+  localStorage.setItem(dayKey(), JSON.stringify(checks));
+}
+
+function render() {
+  const tbody = document.getElementById("studentRows");
+  tbody.innerHTML = "";
+
+  for (let i = 0; i < TOTAL; i++) {
+    const tr = document.createElement("tr");
+
+    const numberCell = document.createElement("td");
+    numberCell.textContent = i + 1;
+    tr.appendChild(numberCell);
+
+    const nameCell = document.createElement("td");
+    const nameInput = document.createElement("input");
+    nameInput.className = "name-input";
+    nameInput.value = names[i];
+    nameInput.maxLength = 40;
+    nameInput.setAttribute("aria-label", "第 " + (i + 1) + " 位學生姓名");
+
+    nameInput.addEventListener("input", () => {
+      names[i] = nameInput.value;
+      saveNames();
+    });
+
+    nameCell.appendChild(nameInput);
+    tr.appendChild(nameCell);
+
+    const checkCell = document.createElement("td");
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = checks[i].brush;
+    checkbox.setAttribute("aria-label", names[i] + " 是否已潔牙");
+
+    checkbox.addEventListener("change", () => {
+      checks[i].brush = checkbox.checked;
+      saveChecks();
+      updateSummary();
+    });
+
+    checkCell.appendChild(checkbox);
+    tr.appendChild(checkCell);
+    tbody.appendChild(tr);
+  }
+
+  updateSummary();
+}
+
+function updateSummary() {
+  const completed = checks.filter(s => s.brush).length;
+  const percent = Math.round(completed / TOTAL * 100);
+
+  document.getElementById("summaryText").textContent =
+    "已潔牙 " + completed + " / " + TOTAL + " 人";
+
+  document.getElementById("detailText").textContent =
+    "完成率：" + percent + "%";
+
+  document.getElementById("progressBar").style.width =
+    percent + "%";
+}
+
+dateInput.addEventListener("change", () => {
+  if (!dateInput.value) {
+    dateInput.value = localDateString();
+  }
+
+  checks = normalizeDay(readJSON(dayKey(), blankDay()));
+  render();
+});
+
+document.getElementById("clearBtn").addEventListener("click", () => {
+  if (confirm("確定清空 " + dateInput.value + " 的潔牙紀錄嗎？")) {
+    checks = blankDay();
+    saveChecks();
+    render();
+  }
+});
+
+document.getElementById("exportBtn").addEventListener("click", () => {
+  const rows = [
+    ["座號", "學生姓名", "潔牙狀態"],
+    ...names.map((name, i) => [
+      i + 1,
+      name,
+      checks[i].brush ? "已潔牙" : "未潔牙"
+    ])
+  ];
+
+  const csv = "\uFEFF" + rows.map(row =>
+    row.map(value =>
+      '"' + String(value).replace(/"/g, '""') + '"'
+    ).join(",")
+  ).join("\r\n");
+
+  const blob = new Blob([csv], {
+    type: "text/csv;charset=utf-8;"
+  });
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "潔牙檢查表_" + dateInput.value + ".csv";
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+});
+
+saveNames();
+render();
+</script>
+</body>
+</html>
